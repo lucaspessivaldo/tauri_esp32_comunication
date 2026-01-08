@@ -20,8 +20,6 @@ pub enum SerialError {
     WriteError(String),
     #[error("Failed to read from port: {0}")]
     ReadError(String),
-    #[error("Port not found: {0}")]
-    PortNotFound(String),
 }
 
 impl Serialize for SerialError {
@@ -120,10 +118,6 @@ impl SerialConnection {
         self.port.is_some()
     }
 
-    pub fn get_port_name(&self) -> Option<String> {
-        self.port_name.clone()
-    }
-
     pub fn send_command(&mut self, cmd: char) -> Result<String, SerialError> {
         let port = self.port.as_mut().ok_or(SerialError::NotConnected)?;
 
@@ -157,18 +151,18 @@ impl SerialConnection {
     pub fn send_config(&mut self, config: &str) -> Result<String, SerialError> {
         let port = self.port.as_mut().ok_or(SerialError::NotConnected)?;
 
-        // Send config wrapped in markers
-        let full_message = format!("<BEGIN>\n{}\n<END>\n", config);
+        // Send config wrapped in <CFG>...<END> markers (new protocol)
+        let full_message = format!("<CFG>\n{}\n<END>\n", config);
         port.write_all(full_message.as_bytes())
             .map_err(|e| SerialError::WriteError(e.to_string()))?;
         port.flush()
             .map_err(|e| SerialError::WriteError(e.to_string()))?;
 
-        // Wait for ESP32 to process
-        std::thread::sleep(Duration::from_millis(500));
+        // Wait for ESP32 to process config
+        std::thread::sleep(Duration::from_millis(1000));
 
         // Read response
-        let mut buffer = vec![0u8; 2048];
+        let mut buffer = vec![0u8; 4096];
         let mut response = String::new();
 
         loop {
@@ -180,6 +174,16 @@ impl SerialConnection {
                 Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,
                 Err(e) => return Err(SerialError::ReadError(e.to_string())),
             }
+        }
+
+        // Check for ACK/NAK response
+        if response.contains("NAK:") {
+            let error_msg = response
+                .lines()
+                .find(|l| l.starts_with("NAK:"))
+                .map(|l| l.strip_prefix("NAK:").unwrap_or("Unknown error"))
+                .unwrap_or("Upload failed");
+            return Err(SerialError::WriteError(error_msg.to_string()));
         }
 
         Ok(response)

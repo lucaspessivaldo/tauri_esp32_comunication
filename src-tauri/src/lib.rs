@@ -1,5 +1,6 @@
 mod commands;
 mod serial;
+pub mod signals;
 
 use commands::*;
 use serial::SerialState;
@@ -21,7 +22,13 @@ pub fn run() {
             reset_defaults,
             get_status,
             upload_config,
-            is_connected
+            is_connected,
+            // Signal library commands
+            import_signal,
+            list_saved_signals,
+            load_saved_signal,
+            delete_saved_signal,
+            upload_saved_signal
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

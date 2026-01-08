@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { PortSelector } from "./components/PortSelector";
 import { StatusDisplay } from "./components/StatusDisplay";
 import { ControlPanel } from "./components/ControlPanel";
-import { ConfigUploader } from "./components/ConfigUploader";
+import { SignalLibrary } from "./components/SignalLibrary";
 import { useConnectionStore } from "./store/connectionStore";
 
 function App() {
@@ -20,7 +20,7 @@ function App() {
   }, [status.connected, refreshStatus]);
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white">
+    <div className="min-h-screen bg-gray-900 text-white pb-12">
       {/* Header */}
       <header className="bg-gray-800 border-b border-gray-700 px-6 py-4">
         <h1 className="text-2xl font-bold text-center">
@@ -32,19 +32,27 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto p-6 max-w-4xl">
-        <div className="space-y-6">
-          {/* Port Selection */}
-          <PortSelector />
+      <main className="container mx-auto p-6 max-w-5xl">
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Left Column - Connection & Controls */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Port Selection */}
+            <PortSelector />
 
-          {/* Status and Controls - Side by Side */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <StatusDisplay />
-            <ControlPanel />
+            {/* Status and Controls - Side by Side */}
+            <div className="grid md:grid-cols-2 gap-6">
+              <StatusDisplay />
+              <ControlPanel />
+            </div>
           </div>
 
-          {/* Config Uploader */}
-          <ConfigUploader />
+          {/* Right Column - Signal Library */}
+          <div className="lg:col-span-1">
+            <SignalLibrary
+              isConnected={status.connected}
+              onStatusChange={refreshStatus}
+            />
+          </div>
         </div>
       </main>
 
