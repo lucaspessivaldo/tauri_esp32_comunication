@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { SignalInfo, DeviceSignalConfig } from '../../types';
+import type { SignalInfo, DeviceSignalConfig, UploadResult, UploadDebugInfo } from '../../types';
+import { useConnectionStore } from '../../store/connectionStore';
+import { debugDecodeSig1Blob } from '../../utils/deviceCodec';
 
 interface SignalLibraryProps {
   isConnected: boolean;
@@ -77,19 +79,53 @@ export function SignalLibrary({ isConnected, onStatusChange }: SignalLibraryProp
       return;
     }
 
+    // Find the signal info to get the name
+    const signalInfo = signals.find(s => s.filename === filename);
+
     try {
       setUploadingSignal(filename);
       setError(null);
-      const response = await invoke<string>('upload_saved_signal', { filename });
 
-      if (response.includes('ACK')) {
+      // First load the signal to get debug info
+      const config = await invoke<DeviceSignalConfig>('load_saved_signal', { filename });
+
+      // Prepare debug info
+      const debugInfo: UploadDebugInfo = {
+        timestamp: new Date(),
+        configJson: JSON.stringify(config).substring(0, 2000),
+        signalName: config.name || signalInfo?.name || filename,
+        ckpBlob: config.CKP?.substring(0, 100) || '',
+        cmp1Blob: config.CMP1?.substring(0, 100) || null,
+        cmp2Blob: config.CMP2?.substring(0, 100) || null,
+        ckpLength: config.CKP?.length || 0,
+        cmp1Length: config.CMP1?.length || null,
+        cmp2Length: config.CMP2?.length || null,
+        totalBytes: JSON.stringify(config).length,
+        result: null,
+        preparationError: null,
+        ckpDecoded: debugDecodeSig1Blob(config.CKP),
+        cmp1Decoded: config.CMP1 ? debugDecodeSig1Blob(config.CMP1) : null,
+        cmp2Decoded: config.CMP2 ? debugDecodeSig1Blob(config.CMP2) : null,
+      };
+
+      // Now upload
+      const result = await invoke<UploadResult>('upload_saved_signal', { filename });
+      debugInfo.result = result;
+
+      // Update the connection store with debug info
+      useConnectionStore.setState({ lastUploadDebug: debugInfo });
+
+      if (result.success) {
         setError(null);
         onStatusChange?.();
       } else {
-        setError('Upload may have failed - check device');
+        const errorMsg = result.error_message || 'Unknown error';
+        setError(`Upload failed: ${errorMsg}`);
+        useConnectionStore.setState({ error: `Upload failed: ${errorMsg}` });
       }
     } catch (e) {
       setError(`Upload failed: ${e}`);
+      useConnectionStore.setState({ error: `Upload failed: ${e}` });
     } finally {
       setUploadingSignal(null);
     }
@@ -160,8 +196,8 @@ export function SignalLibrary({ isConnected, onStatusChange }: SignalLibraryProp
                   onClick={() => handleUpload(signal.filename)}
                   disabled={!isConnected || uploadingSignal !== null}
                   className={`px-3 py-1 rounded text-sm ${isConnected
-                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                      : 'bg-gray-600 text-gray-400 cursor-not-allowed'
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                     }`}
                 >
                   {uploadingSignal === signal.filename ? 'Uploading...' : 'Upload'}

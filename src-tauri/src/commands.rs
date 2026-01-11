@@ -1,4 +1,4 @@
-use crate::serial::{DeviceStatus, PortInfo, SerialState};
+use crate::serial::{DeviceStatus, PortInfo, SerialState, UploadResult};
 use crate::signals::{self, SignalConfig, SignalInfo};
 use tauri::{AppHandle, State};
 
@@ -62,9 +62,14 @@ pub fn get_status(state: State<SerialState>) -> Result<DeviceStatus, String> {
 }
 
 #[tauri::command]
-pub fn upload_config(config: String, state: State<SerialState>) -> Result<String, String> {
-    let mut connection = state.0.lock().map_err(|e| e.to_string())?;
-    connection.send_config(&config).map_err(|e| e.to_string())
+pub async fn upload_config(config: String, state: State<'_, SerialState>) -> Result<UploadResult, String> {
+    let state = state.inner().clone();
+    tokio::task::spawn_blocking(move || {
+        let mut connection = state.0.lock().map_err(|e| e.to_string())?;
+        connection.send_config(&config).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -110,13 +115,17 @@ pub fn delete_saved_signal(filename: String, app: AppHandle) -> Result<(), Strin
 
 /// Load a signal and upload it to ESP32
 #[tauri::command]
-pub fn upload_saved_signal(filename: String, app: AppHandle, state: State<SerialState>) -> Result<String, String> {
+pub fn upload_saved_signal(filename: String, app: AppHandle, state: State<SerialState>) -> Result<UploadResult, String> {
     // Load the signal
     let config = signals::load_signal(&app, &filename)
         .map_err(|e| e.to_string())?;
     
     // Format for ESP32
     let json = signals::format_for_esp32(&config);
+    
+    // Debug: print what we're sending
+    eprintln!("[UPLOAD] JSON to send ({} bytes):", json.len());
+    eprintln!("[UPLOAD] {}", &json[..json.len().min(200)]);
     
     // Send to device
     let mut connection = state.0.lock().map_err(|e| e.to_string())?;

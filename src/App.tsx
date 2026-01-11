@@ -3,17 +3,21 @@ import { PortSelector } from "./components/PortSelector";
 import { StatusDisplay } from "./components/StatusDisplay";
 import { ControlPanel } from "./components/ControlPanel";
 import { SignalLibrary } from "./components/SignalLibrary";
+import { ConfigUploader } from "./components/ConfigUploader";
 import { useConnectionStore } from "./store/connectionStore";
 
 function App() {
   const { status, refreshStatus } = useConnectionStore();
 
-  // Auto-refresh status every 2 seconds when connected
+  // Auto-refresh status every 2 seconds when connected (but skip when busy with commands)
   useEffect(() => {
     if (!status.connected) return;
 
     const interval = setInterval(() => {
-      refreshStatus();
+      // Skip refresh if a command is in progress to prevent serial contention
+      if (!useConnectionStore.getState().isCommandBusy) {
+        refreshStatus();
+      }
     }, 2000);
 
     return () => clearInterval(interval);
@@ -44,6 +48,9 @@ function App() {
               <StatusDisplay />
               <ControlPanel />
             </div>
+
+            {/* Config Uploader with Debug Info */}
+            <ConfigUploader />
           </div>
 
           {/* Right Column - Signal Library */}

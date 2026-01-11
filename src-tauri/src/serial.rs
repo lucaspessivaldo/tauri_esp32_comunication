@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use serialport::{DataBits, FlowControl, Parity, SerialPort, StopBits};
 use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -44,6 +44,16 @@ pub struct DeviceStatus {
     pub running: bool,
     pub rpm: u16,
     pub raw_response: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UploadResult {
+    pub success: bool,
+    pub bytes_sent: usize,
+    pub chunks_sent: usize,
+    pub raw_response: String,
+    pub config_preview: String,
+    pub error_message: Option<String>,
 }
 
 pub struct SerialConnection {
@@ -127,8 +137,8 @@ impl SerialConnection {
         port.flush()
             .map_err(|e| SerialError::WriteError(e.to_string()))?;
 
-        // Small delay to allow ESP32 to respond
-        std::thread::sleep(Duration::from_millis(100));
+        // Small delay to allow ESP32 to respond (30ms is enough for simple commands)
+        std::thread::sleep(Duration::from_millis(30));
 
         // Read response
         let mut buffer = vec![0u8; 1024];
@@ -148,45 +158,160 @@ impl SerialConnection {
         Ok(response)
     }
 
-    pub fn send_config(&mut self, config: &str) -> Result<String, SerialError> {
+    pub fn send_config(&mut self, config: &str) -> Result<UploadResult, SerialError> {
         let port = self.port.as_mut().ok_or(SerialError::NotConnected)?;
 
-        // Send config wrapped in <CFG>...<END> markers (new protocol)
+        // Create preview of config (first 200 chars)
+        let config_preview: String = config.chars().take(500).collect();
+
+        // Clear any pending input first
+        let _ = port.clear(serialport::ClearBuffer::All);
+
+        // Send config wrapped in <CFG>...<END> markers
         let full_message = format!("<CFG>\n{}\n<END>\n", config);
-        port.write_all(full_message.as_bytes())
-            .map_err(|e| SerialError::WriteError(e.to_string()))?;
-        port.flush()
-            .map_err(|e| SerialError::WriteError(e.to_string()))?;
+        let bytes_to_send = full_message.len();
+        
+        // Debug: log message size
+        eprintln!("[SERIAL] Sending config: {} bytes", bytes_to_send);
+        
+        // Send in small chunks to avoid overwhelming ESP32 serial buffer (default 256 bytes)
+        let bytes = full_message.as_bytes();
+        let chunk_size = 64;
+        let mut chunks_sent = 0;
+        
+        for chunk in bytes.chunks(chunk_size) {
+            port.write_all(chunk)
+                .map_err(|e| SerialError::WriteError(e.to_string()))?;
+            port.flush()
+                .map_err(|e| SerialError::WriteError(e.to_string()))?;
+            chunks_sent += 1;
+            // Small delay between chunks to let ESP32 buffer drain
+            std::thread::sleep(Duration::from_millis(2));
+        }
 
-        // Wait for ESP32 to process config
-        std::thread::sleep(Duration::from_millis(1000));
-
-        // Read response
+        // Wait for ESP32 to receive and process config
         let mut buffer = vec![0u8; 4096];
         let mut response = String::new();
+        const RESPONSE_CAP: usize = 16 * 1024;
+        let start = std::time::Instant::now();
+        let max_wait = Duration::from_millis(15000); // 15 second max wait for large configs
 
-        loop {
+        let mut saw_ack = false;
+        let mut nak_line: Option<String> = None;
+
+        let scan_for_ack_nak = |s: &str| {
+            let mut ack = false;
+            let mut nak: Option<String> = None;
+            for line in s.lines() {
+                let t = line.trim();
+                if t == "ACK" {
+                    ack = true;
+                }
+                if t.starts_with("NAK:") {
+                    nak = Some(t.to_string());
+                }
+            }
+            (ack, nak)
+        };
+
+        // Keep reading until we get ACK/NAK or timeout
+        while start.elapsed() < max_wait {
+            std::thread::sleep(Duration::from_millis(100));
+            
             match port.read(&mut buffer) {
                 Ok(n) if n > 0 => {
                     response.push_str(&String::from_utf8_lossy(&buffer[..n]));
+
+                    // Cap response to avoid unbounded growth
+                    if response.len() > RESPONSE_CAP {
+                        let keep_from = response.len() - RESPONSE_CAP;
+                        response = response.split_off(keep_from);
+                    }
+                    
+                    let (ack, nak) = scan_for_ack_nak(&response);
+                    if ack {
+                        saw_ack = true;
+                    }
+                    if nak.is_some() {
+                        nak_line = nak;
+                    }
+
+                    // Check if we have a complete response (ACK or NAK)
+                    if saw_ack || nak_line.is_some() {
+                        break;
+                    }
                 }
-                Ok(_) => break,
-                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {}
                 Err(e) => return Err(SerialError::ReadError(e.to_string())),
             }
         }
 
-        // Check for ACK/NAK response
-        if response.contains("NAK:") {
-            let error_msg = response
-                .lines()
-                .find(|l| l.starts_with("NAK:"))
-                .map(|l| l.strip_prefix("NAK:").unwrap_or("Unknown error"))
-                .unwrap_or("Upload failed");
-            return Err(SerialError::WriteError(error_msg.to_string()));
+        // If we saw ACK, drain briefly so trailing logs don't pollute the next command.
+        if saw_ack {
+            let drain_start = std::time::Instant::now();
+            while drain_start.elapsed() < Duration::from_millis(250) {
+                match port.read(&mut buffer) {
+                    Ok(n) if n > 0 => {
+                        response.push_str(&String::from_utf8_lossy(&buffer[..n]));
+                        if response.len() > RESPONSE_CAP {
+                            let keep_from = response.len() - RESPONSE_CAP;
+                            response = response.split_off(keep_from);
+                        }
+                    }
+                    Ok(_) => {}
+                    Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => break,
+                    Err(_) => break,
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
         }
 
-        Ok(response)
+        // Check for empty response (timeout without acknowledgment)
+        if response.trim().is_empty() {
+            return Ok(UploadResult {
+                success: false,
+                bytes_sent: bytes_to_send,
+                chunks_sent,
+                raw_response: response,
+                config_preview,
+                error_message: Some("No response from ESP32 - config may not have been applied (timeout)".to_string()),
+            });
+        }
+
+        // Check for NAK (error) response first
+        if let Some(line) = nak_line {
+            return Ok(UploadResult {
+                success: false,
+                bytes_sent: bytes_to_send,
+                chunks_sent,
+                raw_response: response,
+                config_preview,
+                error_message: Some(line),
+            });
+        }
+
+        // Verify ACK was received
+        if !saw_ack {
+            let preview: String = response.chars().take(300).collect();
+            return Ok(UploadResult {
+                success: false,
+                bytes_sent: bytes_to_send,
+                chunks_sent,
+                raw_response: response,
+                config_preview,
+                error_message: Some(format!("No ACK received. Response preview: {}", preview)),
+            });
+        }
+
+        Ok(UploadResult {
+            success: true,
+            bytes_sent: bytes_to_send,
+            chunks_sent,
+            raw_response: response,
+            config_preview,
+            error_message: None,
+        })
     }
 
     pub fn get_status(&mut self) -> Result<DeviceStatus, SerialError> {
@@ -231,10 +356,11 @@ impl SerialConnection {
 }
 
 // Thread-safe global connection
-pub struct SerialState(pub Mutex<SerialConnection>);
+#[derive(Clone)]
+pub struct SerialState(pub Arc<Mutex<SerialConnection>>);
 
 impl Default for SerialState {
     fn default() -> Self {
-        SerialState(Mutex::new(SerialConnection::new()))
+        SerialState(Arc::new(Mutex::new(SerialConnection::new())))
     }
 }

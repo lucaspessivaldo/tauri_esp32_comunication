@@ -1,8 +1,10 @@
+import { useRef, useCallback } from "react";
 import { useConnectionStore } from "../../store/connectionStore";
 
 export function ControlPanel() {
   const {
     status,
+    isCommandBusy,
     runSignal,
     stopSignal,
     increaseRpm,
@@ -13,6 +15,24 @@ export function ControlPanel() {
   } = useConnectionStore();
 
   const isDisabled = !status.connected;
+
+  // Debounce timers for RPM buttons
+  const lastRpmClickRef = useRef<number>(0);
+  const DEBOUNCE_MS = 150;
+
+  const debouncedIncreaseRpm = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRpmClickRef.current < DEBOUNCE_MS) return;
+    lastRpmClickRef.current = now;
+    increaseRpm();
+  }, [increaseRpm]);
+
+  const debouncedDecreaseRpm = useCallback(() => {
+    const now = Date.now();
+    if (now - lastRpmClickRef.current < DEBOUNCE_MS) return;
+    lastRpmClickRef.current = now;
+    decreaseRpm();
+  }, [decreaseRpm]);
 
   return (
     <div className="p-4 bg-gray-800 rounded-lg">
@@ -29,18 +49,20 @@ export function ControlPanel() {
 
         <div className="flex items-center justify-center gap-4">
           <button
-            onClick={decreaseRpm}
-            disabled={isDisabled}
+            onClick={debouncedDecreaseRpm}
+            disabled={isDisabled || isCommandBusy}
             className="w-14 h-14 text-2xl bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             −
           </button>
 
-          <div className="text-gray-400 text-sm">±100 RPM</div>
+          <div className="text-gray-400 text-sm">
+            {isCommandBusy ? "..." : "±100 RPM"}
+          </div>
 
           <button
-            onClick={increaseRpm}
-            disabled={isDisabled}
+            onClick={debouncedIncreaseRpm}
+            disabled={isDisabled || isCommandBusy}
             className="w-14 h-14 text-2xl bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             +

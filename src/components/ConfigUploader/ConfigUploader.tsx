@@ -1,4 +1,6 @@
 import { useConnectionStore } from "../../store/connectionStore";
+import type { ChangeEvent } from "react";
+import { isDeviceSignalConfig } from "../../utils/deviceCodec";
 
 export function ConfigUploader() {
   const {
@@ -10,7 +12,7 @@ export function ConfigUploader() {
     uploadConfig,
   } = useConnectionStore();
 
-  const handlePaste = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const handlePaste = (e: ChangeEvent<HTMLTextAreaElement>) => {
     setConfigJson(e.target.value);
   };
 
@@ -45,13 +47,10 @@ export function ConfigUploader() {
         value={configJson}
         onChange={handlePaste}
         placeholder={`{
-  "rpm": 2500,
-  "cycle": 720,
-  "signals": {
-    "ckp": { "edges": [...] },
-    "cmp1": { "edges": [...] },
-    "cmp2": { "edges": [...] }
-  }
+  "name": "My Signal",
+  "CKP": "SIG1...",
+  "CMP1": null,
+  "CMP2": null
 }`}
         className="w-full h-40 px-3 py-2 bg-gray-900 border border-gray-600 rounded-md text-white font-mono text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
@@ -59,13 +58,24 @@ export function ConfigUploader() {
       {loadedConfig && (
         <div className="mt-3 p-3 bg-green-900/30 border border-green-700 rounded-md">
           <div className="text-green-400 text-sm font-medium mb-2">✓ Config Valid</div>
-          <div className="grid grid-cols-2 gap-2 text-sm text-gray-300">
-            <div>RPM: <span className="text-white">{loadedConfig.rpm}</span></div>
-            <div>Cycle: <span className="text-white">{loadedConfig.cycle}°</span></div>
-            <div>CKP Edges: <span className="text-white">{loadedConfig.signals.ckp.edges.length}</span></div>
-            <div>CMP1 Edges: <span className="text-white">{loadedConfig.signals.cmp1.edges.length}</span></div>
-            <div>CMP2 Edges: <span className="text-white">{loadedConfig.signals.cmp2.edges.length}</span></div>
-          </div>
+          {isDeviceSignalConfig(loadedConfig) ? (
+            <div className="grid grid-cols-2 gap-2 text-sm text-gray-300">
+              <div>Name: <span className="text-white">{loadedConfig.name}</span></div>
+              <div>Format: <span className="text-white">Device (SIG1)</span></div>
+              <div>CKP Size: <span className="text-white">{loadedConfig.CKP.length}</span></div>
+              <div>CMP1: <span className="text-white">{loadedConfig.CMP1 ? loadedConfig.CMP1.length : 0}</span></div>
+              <div>CMP2: <span className="text-white">{loadedConfig.CMP2 ? loadedConfig.CMP2.length : 0}</span></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 text-sm text-gray-300">
+              <div>RPM: <span className="text-white">{loadedConfig.rpm}</span></div>
+              <div>Cycle: <span className="text-white">{loadedConfig.cycle}°</span></div>
+              <div>CKP Edges: <span className="text-white">{loadedConfig.signals.ckp.edges.length}</span></div>
+              <div>CMP1 Edges: <span className="text-white">{loadedConfig.signals.cmp1.edges.length}</span></div>
+              <div>CMP2 Edges: <span className="text-white">{loadedConfig.signals.cmp2.edges.length}</span></div>
+              <div>Format: <span className="text-white">Legacy (auto-convert)</span></div>
+            </div>
+          )}
         </div>
       )}
 
