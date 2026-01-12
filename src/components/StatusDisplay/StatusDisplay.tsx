@@ -177,7 +177,7 @@ export function StatusDisplay() {
 
       {error && (
         <div className="mb-2 p-2 bg-destructive/20 border border-destructive rounded-md flex items-start justify-between gap-2">
-          <span className="text-destructive text-xs break-words flex-1">{error}</span>
+          <span className="text-destructive text-xs wrap-break-words flex-1">{error}</span>
           <button
             onClick={clearError}
             className="text-destructive hover:text-destructive/80 text-sm shrink-0"

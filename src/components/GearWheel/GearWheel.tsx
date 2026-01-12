@@ -271,7 +271,8 @@ export function GearWheel({
   const sensorIconTop = (dimensions.height - size) / 2 - sensorIconSize * 0.3;
 
   return (
-    <div ref={containerRef} className="w-full h-full flex items-center justify-center min-h-[280px] relative">
+    <div ref={containerRef} className="w-full h-full flex items-center justify-center min-h-70
+     relative">
       <canvas
         ref={canvasRef}
         onClick={handleCanvasClick}

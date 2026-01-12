@@ -30,7 +30,7 @@ export function SignalEditor() {
         </div>
 
         {/* Oscilloscope Panel - Takes remaining space */}
-        <div className="flex-1 bg-card border border-border rounded-lg overflow-hidden min-h-[200px] p-4">
+        <div className="flex-1 bg-card border border-border rounded-lg overflow-hidden min-h-50 p-4">
           <Oscilloscope />
         </div>
       </main>
