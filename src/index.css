@@ -1,1 +1,65 @@
 @import "tailwindcss";
+
+@theme inline {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  
+  /* shadcn/ui CSS Variables - Light theme only */
+  --radius: 0.5rem;
+  /* Remove rounded corners globally */
+  --radius: 0;
+  
+  /* Colors for Tailwind 4 - need --color- prefix for bg-*, text-*, etc. */
+  --color-background: oklch(1 0 0);
+  --color-foreground: oklch(0.145 0 0);
+  
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.145 0 0);
+  
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.145 0 0);
+  
+  --color-primary: oklch(0.205 0 0);
+  --color-primary-foreground: oklch(0.985 0 0);
+  
+  --color-secondary: oklch(0.97 0 0);
+  --color-secondary-foreground: oklch(0.205 0 0);
+  
+  --color-muted: oklch(0.97 0 0);
+  --color-muted-foreground: oklch(0.556 0 0);
+  
+  --color-accent: oklch(0.97 0 0);
+  --color-accent-foreground: oklch(0.205 0 0);
+  
+  --color-destructive: oklch(0.577 0.245 27.325);
+  --color-destructive-foreground: oklch(0.985 0 0);
+  
+  --color-border: oklch(0.922 0 0);
+  --color-input: oklch(0.922 0 0);
+  --color-ring: oklch(0.708 0 0);
+  
+  /* Signal colors */
+  --color-ckp: oklch(0.546 0.245 262.881);
+  --color-cmp1: oklch(0.705 0.213 47.604);
+  --color-cmp2: oklch(0.723 0.219 149.579);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  border-color: var(--color-border);
+  border-radius: 0 !important;
+}
+
+/* Also override Tailwind/shadcn utility classes that contain "rounded" */
+[class*="rounded"] {
+  border-radius: 0 !important;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}

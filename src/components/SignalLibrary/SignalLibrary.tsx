@@ -132,91 +132,93 @@ export function SignalLibrary({ isConnected, onStatusChange }: SignalLibraryProp
   };
 
   return (
-    <div className="bg-gray-800 rounded-lg p-4">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold text-white">Signal Library</h2>
+    <div className="bg-card border border-border rounded-lg p-3 h-full flex flex-col">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-sm font-semibold text-foreground">Signal Library</h2>
         <button
           onClick={() => setShowImport(!showImport)}
-          className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm"
+          className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white rounded text-xs"
         >
           {showImport ? 'Cancel' : '+ Import'}
         </button>
       </div>
 
       {error && (
-        <div className="mb-4 p-2 bg-red-900/50 border border-red-500 rounded text-red-200 text-sm">
+        <div className="mb-2 p-2 bg-destructive/20 border border-destructive rounded text-destructive text-xs">
           {error}
         </div>
       )}
 
       {showImport && (
-        <div className="mb-4 p-3 bg-gray-700 rounded">
-          <p className="text-sm text-gray-300 mb-2">
+        <div className="mb-2 p-2 bg-muted rounded">
+          <p className="text-xs text-muted-foreground mb-1">
             Paste JSON from Signal Generator:
           </p>
           <textarea
             value={importText}
             onChange={(e) => setImportText(e.target.value)}
             placeholder='{"name": "...", "CKP": "SIG1...", ...}'
-            className="w-full h-24 p-2 bg-gray-900 text-white rounded font-mono text-xs resize-none"
+            className="w-full h-16 p-1.5 bg-background border border-border text-foreground rounded font-mono text-xs resize-none"
           />
           <button
             onClick={handleImport}
             disabled={!importText.trim() || loading}
-            className="mt-2 px-4 py-1 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-600 text-white rounded text-sm"
+            className="mt-1.5 px-3 py-1 bg-primary hover:bg-primary/90 disabled:bg-muted text-primary-foreground rounded text-xs"
           >
             {loading ? 'Importing...' : 'Import Signal'}
           </button>
         </div>
       )}
 
-      {loading && signals.length === 0 ? (
-        <p className="text-gray-400 text-sm">Loading...</p>
-      ) : signals.length === 0 ? (
-        <p className="text-gray-400 text-sm">
-          No signals saved. Import one from Signal Generator.
-        </p>
-      ) : (
-        <div className="space-y-2">
-          {signals.map((signal) => (
-            <div
-              key={signal.filename}
-              className="flex items-center justify-between p-3 bg-gray-700 rounded"
-            >
-              <div>
-                <p className="text-white font-medium">{signal.name}</p>
-                <p className="text-xs text-gray-400">
-                  {signal.has_ckp && <span className="text-green-400">CKP </span>}
-                  {signal.has_cmp1 && <span className="text-blue-400">CMP1 </span>}
-                  {signal.has_cmp2 && <span className="text-purple-400">CMP2</span>}
-                </p>
+      <div className="flex-1 overflow-auto min-h-0">
+        {loading && signals.length === 0 ? (
+          <p className="text-muted-foreground text-xs">Loading...</p>
+        ) : signals.length === 0 ? (
+          <p className="text-muted-foreground text-xs">
+            No signals saved. Import one from Signal Generator.
+          </p>
+        ) : (
+          <div className="space-y-1.5">
+            {signals.map((signal) => (
+              <div
+                key={signal.filename}
+                className="flex items-center justify-between p-2 bg-muted rounded gap-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="text-foreground text-sm font-medium truncate">{signal.name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {signal.has_ckp && <span className="text-green-400">CKP </span>}
+                    {signal.has_cmp1 && <span className="text-orange-400">CMP1 </span>}
+                    {signal.has_cmp2 && <span className="text-purple-400">CMP2</span>}
+                  </p>
+                </div>
+                <div className="flex gap-1 shrink-0">
+                  <button
+                    onClick={() => handleUpload(signal.filename)}
+                    disabled={!isConnected || uploadingSignal !== null}
+                    className={`px-2 py-1 rounded text-xs ${isConnected
+                      ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                      : 'bg-muted text-muted-foreground cursor-not-allowed'
+                      }`}
+                  >
+                    {uploadingSignal === signal.filename ? '...' : 'Upload'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(signal.filename)}
+                    className="px-2 py-1 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded text-xs"
+                  >
+                    Delete
+                  </button>
+                </div>
               </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleUpload(signal.filename)}
-                  disabled={!isConnected || uploadingSignal !== null}
-                  className={`px-3 py-1 rounded text-sm ${isConnected
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                    : 'bg-gray-600 text-gray-400 cursor-not-allowed'
-                    }`}
-                >
-                  {uploadingSignal === signal.filename ? 'Uploading...' : 'Upload'}
-                </button>
-                <button
-                  onClick={() => handleDelete(signal.filename)}
-                  className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white rounded text-sm"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
 
       <button
         onClick={loadSignals}
-        className="mt-4 text-sm text-gray-400 hover:text-white"
+        className="mt-2 text-xs text-muted-foreground hover:text-foreground shrink-0"
       >
         ↻ Refresh
       </button>

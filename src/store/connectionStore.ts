@@ -31,7 +31,8 @@ interface ConnectionState {
   saveToNvs: () => Promise<void>;
   resetDefaults: () => Promise<void>;
   refreshStatus: () => Promise<void>;
-  uploadConfig: () => Promise<void>;
+  uploadConfig: (config?: DeviceSignalConfig) => Promise<void>;
+  saveSignal: (config: DeviceSignalConfig) => Promise<void>;
   setConfigJson: (json: string) => void;
   parseConfig: () => void;
   clearError: () => void;
@@ -191,12 +192,20 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     }
   },
 
-  uploadConfig: async () => {
+  uploadConfig: async (directConfig?: DeviceSignalConfig) => {
     if (get().isCommandBusy) return;
-    const { configJson } = get();
-    if (!configJson.trim()) {
-      set({ error: "No config to upload" });
-      return;
+
+    // If directConfig is provided, use it; otherwise use configJson from state
+    let configToUpload: string;
+    if (directConfig) {
+      configToUpload = JSON.stringify(directConfig);
+    } else {
+      const { configJson } = get();
+      if (!configJson.trim()) {
+        set({ error: "No config to upload" });
+        return;
+      }
+      configToUpload = configJson;
     }
 
     set({ isCommandBusy: true, lastUploadDebug: null });
@@ -204,7 +213,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     // Prepare debug info
     let debugInfo: UploadDebugInfo = {
       timestamp: new Date(),
-      configJson: configJson.substring(0, 2000), // Limit stored config preview
+      configJson: configToUpload.substring(0, 2000), // Limit stored config preview
       signalName: "Unknown",
       ckpBlob: "",
       cmp1Blob: null,
@@ -221,7 +230,7 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
     };
 
     try {
-      const { jsonToSend, device } = prepareConfigForUpload(configJson);
+      const { jsonToSend, device } = prepareConfigForUpload(configToUpload);
 
       // Extract info for debugging
       debugInfo.signalName = device.name;
@@ -262,6 +271,15 @@ export const useConnectionStore = create<ConnectionState>((set, get) => ({
       });
     } finally {
       set({ isCommandBusy: false });
+    }
+  },
+
+  saveSignal: async (config: DeviceSignalConfig) => {
+    try {
+      const json = JSON.stringify(config);
+      await invoke<string>("import_signal", { json });
+    } catch (e) {
+      throw new Error(`Failed to save signal: ${e}`);
     }
   },
 

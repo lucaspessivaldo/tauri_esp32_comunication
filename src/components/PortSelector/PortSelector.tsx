@@ -18,13 +18,13 @@ export function PortSelector() {
   }, []);
 
   return (
-    <div className="flex items-center gap-3 p-4 bg-gray-800 rounded-lg">
-      <label className="text-gray-300 font-medium">Port:</label>
+    <div className="flex items-center gap-2 p-3 bg-card border border-border rounded-lg">
+      <label className="text-muted-foreground font-medium text-sm shrink-0">Port:</label>
       <select
         value={selectedPort || ""}
         onChange={(e) => selectPort(e.target.value || null)}
         disabled={status.connected || isConnecting}
-        className="flex-1 px-3 py-2 bg-gray-700 border border-gray-600 rounded-md text-white focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+        className="flex-1 px-3 py-1.5 bg-muted border border-border rounded-md text-foreground text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
       >
         <option value="">Select a port...</option>
         {ports.map((port) => (
@@ -37,7 +37,7 @@ export function PortSelector() {
       <button
         onClick={refreshPorts}
         disabled={status.connected || isConnecting}
-        className="px-3 py-2 bg-gray-600 hover:bg-gray-500 rounded-md text-white transition-colors disabled:opacity-50"
+        className="p-1.5 bg-muted hover:bg-muted/80 border border-border rounded-md text-foreground transition-colors disabled:opacity-50"
         title="Refresh ports"
       >
         🔄
@@ -46,7 +46,7 @@ export function PortSelector() {
       {status.connected ? (
         <button
           onClick={disconnect}
-          className="px-4 py-2 bg-red-600 hover:bg-red-500 rounded-md text-white font-medium transition-colors"
+          className="px-4 py-1.5 bg-destructive hover:bg-destructive/90 rounded-md text-destructive-foreground font-medium text-sm transition-colors"
         >
           Disconnect
         </button>
@@ -54,7 +54,7 @@ export function PortSelector() {
         <button
           onClick={connect}
           disabled={!selectedPort || isConnecting}
-          className="px-4 py-2 bg-green-600 hover:bg-green-500 rounded-md text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          className="px-4 py-1.5 bg-green-600 hover:bg-green-500 rounded-md text-white font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {isConnecting ? "Connecting..." : "Connect"}
         </button>
